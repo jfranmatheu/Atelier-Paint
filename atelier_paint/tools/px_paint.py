@@ -26,8 +26,6 @@ class ATELIERPAINT_OT_px_paint(BasePaintToolOperator, Operator):
     color: FloatVectorProperty(name='Color', default=(1.0, 1.0, 1.0, 1.0), size=4, subtype='COLOR', min=0.0, max=1.0)
 
     def init(self, context) -> None:
-        #self.px_indices = (-1, -1)
-        #self.widget = None
         self.pixel_slots = set()
 
     def on_mouse_move(self, context, event, mouse) -> None:
@@ -43,43 +41,14 @@ class ATELIERPAINT_OT_px_paint(BasePaintToolOperator, Operator):
         pass
 
     def on_mouse_press(self, context, mouse) -> None:
-        '''
-        wg = PixelPaintWidget.get(context)
-        if not wg:
-            self.finished = True
-            return
-        self.widget = wg
-        self.px_indices = (-1, -1)
-        '''
         self.paint(context)
 
     def paint(self, context) -> None:
-        '''
-        print(self.px_indices)
-        if not self.widget:
-            return
-        if self.px_indices == self.widget.px_indices:
-            return
-        self.px_indices = self.widget.px_indices
-        if self.px_indices[0] < 0 or self.px_indices[1] < 0:
-            return
-        '''
         global pixel_slot
         if pixel_slot in self.pixel_slots:
             return
         self.pixel_slots.add(pixel_slot)
-        '''
-        self.px_indices = pixel_slot
-        img_width = self.image.size[0]
-        pixel = pixel_slot[0] + img_width * pixel_slot[1]
-        print(pixel_slot)
-        print(pixel)
-        if pixel < 0:
-            return
-        '''
-
         context.area.tag_redraw()
-        #self.image.pixels[pixel:pixel+4] = self.color[:]
 
     def on_mouse_release(self, context, mouse) -> None:
         for slot in self.pixel_slots:
