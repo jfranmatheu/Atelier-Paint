@@ -14,8 +14,6 @@ from atelier_paint.utils import math
 class BasePaintToolOperator:
     bl_label = "Paint Tool"
 
-    use_gizmo = False
-    use_undo_hack = True
     use_overlay = True
     use_modal = True
     finish_on_mouse_release = True
@@ -113,8 +111,7 @@ class BasePaintToolOperator:
             if event.value == 'RELEASE':
                 if self.finish_on_mouse_release:
                     self.finish(context)
-                    if self.use_undo_hack:
-                        self.push_undo_hack(context)
+                    self.push_undo_hack(context)
                     self._on_mouse_release(context, event)
                     bpy.ops.ed.undo_push(message='Paint Tool')
                     return {'FINISHED'}
@@ -123,16 +120,13 @@ class BasePaintToolOperator:
 
         if self.fake_confirm or (event.type in self.confirm_events and event.value == 'RELEASE'):
             self.finish(context)
-            if self.use_undo_hack:
-                self.push_undo_hack(context)
+            self.push_undo_hack(context)
             self.confirm(context, self.get_mouse_region(event))
             bpy.ops.ed.undo_push(message='Paint Tool')
             self.finished = True
             #return {'FINISHED'}
             return {'RUNNING_MODAL'}
 
-        if self.use_gizmo and self.mouse_pressed and event.type == 'MOUSEMOVE':
-            return {'PASS_THROUGH'}
         return {'RUNNING_MODAL'}
 
     def init(self, context) -> None:
@@ -145,8 +139,6 @@ class BasePaintToolOperator:
         pass
 
     def _on_mouse_press(self, context, event) -> None:
-        if self.use_gizmo:
-            self.mouse_pressed = True
         context.region.tag_redraw()
         self.on_mouse_press(context, self.get_mouse_region(event))
 
@@ -156,8 +148,6 @@ class BasePaintToolOperator:
         self.on_mouse_move(context, event, self.mouse_current)
 
     def _on_mouse_release(self, context, _event) -> None:
-        if self.use_gizmo:
-            self.mouse_pressed = False
         #undo_image = bpy.data.images.get('.undo_image', None)
         #if not undo_image:
         #    undo_image = bpy.data.images.new('.undo_image', *self.image.size)

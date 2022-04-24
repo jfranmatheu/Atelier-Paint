@@ -134,8 +134,7 @@ class ImageUtils:
         # Return to a 1-D array with N pixel count (RGBA). [ pixel_1, pixel_2, ... pixel_N ].
         pixels = pixels.reshape(-1)
         image.pixels.foreach_set(pixels)
-        if context:
-            ImageUtils.refresh(image, context)
+        ImageUtils.refresh(image, context)
 
 
     @staticmethod

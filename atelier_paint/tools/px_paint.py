@@ -1,24 +1,37 @@
-from math import floor
+from math import ceil, floor
+from atelier_paint.gpu.draw import Grid, Rct
 from atelier_paint.ops.base import BasePaintToolOperator
 from atelier_paint.utils.image import ImageUtils
 from atelier_paint.utils.math import clamp
+from atelier_paint.utils.paint import PaintUtils
 import bpy
 from bpy.types import GizmoGroup, Gizmo, WorkSpaceTool, Operator
 from mathutils import Vector
 from bpy.props import FloatVectorProperty
 
+global pixel_slot
+global pixel_size
+global img_reg_origin
+pixel_slot = (-1, -1)
+pixel_size = 1
+img_reg_origin = Vector((0, 0))
 
 class ATELIERPAINT_OT_px_paint(BasePaintToolOperator, Operator):
     bl_idname = 'atelierpaint.px_paint'
     bl_label = "Fill Shape"
+    
+    use_undo_hack = False
+    use_gizmo = True
 
     color: FloatVectorProperty(name='Color', default=(1.0, 1.0, 1.0, 1.0), size=4, subtype='COLOR', min=0.0, max=1.0)
 
     def init(self, context) -> None:
-        pass
+        #self.px_indices = (-1, -1)
+        #self.widget = None
+        self.pixel_slots = set()
 
     def on_mouse_move(self, context, event, mouse) -> None:
-        pass
+        self.paint(context)
 
     def on_shift_hold(self, context) -> None:
         pass
@@ -28,35 +41,109 @@ class ATELIERPAINT_OT_px_paint(BasePaintToolOperator, Operator):
 
     def on_ctrl_shift_hold(self, context) -> None:
         pass
+    
+    def on_mouse_press(self, context, mouse) -> None:
+        '''
+        wg = PixelPaintWidget.get(context)
+        if not wg:
+            self.finished = True
+            return
+        self.widget = wg
+        self.px_indices = (-1, -1)
+        '''
+        self.paint(context)
+
+    def paint(self, context) -> None:
+        '''
+        print(self.px_indices)
+        if not self.widget:
+            return
+        if self.px_indices == self.widget.px_indices:
+            return
+        self.px_indices = self.widget.px_indices
+        if self.px_indices[0] < 0 or self.px_indices[1] < 0:
+            return
+        '''
+        global pixel_slot
+        if pixel_slot in self.pixel_slots:
+            return
+        self.pixel_slots.add(pixel_slot)
+        '''
+        self.px_indices = pixel_slot
+        img_width = self.image.size[0]
+        pixel = pixel_slot[0] + img_width * pixel_slot[1]
+        print(pixel_slot)
+        print(pixel)
+        if pixel < 0:
+            return
+        '''
+        
+        context.area.tag_redraw()
+        #self.image.pixels[pixel:pixel+4] = self.color[:]
 
     def on_mouse_release(self, context, mouse) -> None:
-        pass
+        for slot in self.pixel_slots:
+            ImageUtils.fill(
+            self.image,
+            (*slot, slot[0]+1, slot[1]+1),
+            self.color,
+            #context
+        )
+        ImageUtils.refresh(self.image, context)
 
     def overlay(self, context) -> None:
-        pass
+        global pixel_size
+        global img_reg_origin
+        origin = img_reg_origin
+        size = pixel_size*2
+        for slot in self.pixel_slots:
+            x = origin.x + slot[0] * size
+            y = origin.y + slot[1] * size
+            Rct(
+                [
+                    x, y,
+                    x+size, y+size
+                ],
+                self.color
+            )
 
 
 class PixelPaintWidget(Gizmo):
     bl_idname = "IMAGE_GT_pixel_paint"
+    instances = {}
+    
+    @staticmethod
+    def get(context):
+        return PixelPaintWidget.instances.get(str(id(context.region)), None)
 
     def setup(self):
-        self.ratio = 1
-        self.size = 1
+        #self.ratio = 1
+        self.pixel_size = 1
         self.pos = (0, 0)
+        self.px_indices = (0, 0)
+        self.img_reg_size = Vector((0, 0))
         self.line_width = 1.0
+        self.zoom = 1.0
+        self.mp = (0, 0)
+        bpy.context.space_data.zoom[0]
 
     def test_select(self, ctx, mp):
         if not ImageUtils.has_image(ctx):
             return -1
+        self.mp = mp
+        self.update_pixel_pos(ctx, mp)
+        return -1
 
+    def update_pixel_pos(self, ctx, pos):
         # Divide space per number of slots/pixels availables.
         region = ctx.region
         region_size = Vector((region.width, region.height))
         image_size = Vector(ImageUtils.get_image_size(ctx))
         zoom = ctx.space_data.zoom[0]
-
+        
+        '''
         cur_pos = Vector(mp)
-        origin = Vector(ImageUtils.project_point(ctx, (0, 0), invert=True))
+        origin = Vector(ImageUtils.project_point(ctx, (0, 0), invert=True, clip=False))
         rel_cur_pos = cur_pos - origin
 
         reg_image_size = Vector((image_size.x * zoom, image_size.y * zoom))
@@ -69,7 +156,7 @@ class PixelPaintWidget(Gizmo):
         print("Origin:", origin)
         print("Image Ratio:", image_ratio_x, image_ratio_y)
 
-        pixel_size = self.size # reg_image_size.x * self.ratio * zoom
+        pixel_size = self.pixel_size # reg_image_size.x * self.ratio * zoom
         print("Pixel Size:", pixel_size)
         print(floor(rel_cur_pos[0]/image_ratio_x))
         px_indices = (
@@ -81,54 +168,90 @@ class PixelPaintWidget(Gizmo):
             origin[0] + floor(image_ratio_x * px_indices[0]) + pixel_size,
             origin[1] + floor(image_ratio_y * px_indices[1]) + pixel_size
         )
+        '''
+        
+        pos = Vector(pos)
+        reg_origin = Vector(ImageUtils.project_to_region(ctx, (0, 0), clip=False, round_to_int=False))
+        rel_pos = pos - reg_origin
+        
+        reg_image_size = Vector((image_size.x * zoom, image_size.y * zoom))
+        image_ratio_x = reg_image_size.x / image_size.x
+        image_ratio_y = reg_image_size.y / image_size.y
+        
+        px_indices = Vector((
+            floor(rel_pos.x / image_ratio_x),
+            floor(rel_pos.y / image_ratio_y)
+        ))
+        self.px_indices = px_indices
+        global pixel_slot
+        pixel_slot = (int(px_indices.x), int(px_indices.y))
+        global img_reg_origin
+        img_reg_origin = reg_origin
 
-        print("Mouse:", rel_cur_pos)
-        print("Fixed Pos:", mp)
-        self.matrix_basis[0][3], self.matrix_basis[1][3] = floor(mp[0]), floor(mp[1]) # p_reg_origin[0], p_reg_origin[1]
-        return -1
+        pixel_size = self.pixel_size
+        fixed_mp = (
+            ceil(reg_origin[0] + (image_ratio_x * px_indices.x) + pixel_size),
+            ceil(reg_origin[1] + (image_ratio_y * px_indices.y) + pixel_size)# + 1
+        )
+
+        #print("Mouse:", rel_cur_pos)
+        #print("Fixed Pos:", pos)
+        self.pos = fixed_mp
+        self.matrix_basis[0][3], self.matrix_basis[1][3] = fixed_mp[0], fixed_mp[1] # p_reg_origin[0], p_reg_origin[1]
 
     def update_pixel_size(self, ctx):
         region = ctx.region
         region_size = Vector((region.width, region.height))
         image_size = Vector(ImageUtils.get_image_size(ctx))
         zoom = ctx.space_data.zoom[0]
+        
+        if zoom == self.zoom:
+            return
 
-        p_view_origin = Vector(ImageUtils.project_point(ctx, (0, 0))) #, return_relative=True)) #, invert=True)
-        p_view_origin_plus = Vector(ImageUtils.project_point(ctx, (1, 0)))#, return_relative=True)) #, invert=True)
-        p_view_max_x = Vector(ImageUtils.project_point(ctx, (image_size.x, 0)))#, return_relative=True))
+        view_width  = image_size.x * zoom
+        #view_height = image_size.y * zoom
+        reg_x0   = ImageUtils.project_to_region(ctx, (0, 0),           clip=False)[0]
+        reg_x1   = ImageUtils.project_to_region(ctx, (1, 0),           clip=False)[0]
+        #reg_xmax = ImageUtils.project_to_region(ctx, (view_width, 0),  clip=False)[0]
+        #reg_y0   = ImageUtils.project_to_region(ctx, (0, 0),           clip=False)[1]
+        #reg_ymax = ImageUtils.project_to_region(ctx, (0, view_height), clip=False)[0]
 
-        # Image is left-outside the region.x if view_origin.x is > 0:
-        x_holdout = p_view_origin.x > 0
-        # Image is Downwards the region.y if view_origin.y is > 0:
-        y_holdout = p_view_origin.y > 0
+        #img_region_width  = (reg_xmax - reg_x0)
+        #img_region_height = (reg_ymax - reg_y0)
+        #self.img_reg_size = Vector((img_region_width, img_region_height))
+        
+        # Calc pixel size.
+        px_size = (reg_x1 - reg_x0) / view_width * zoom
+        self.pixel_size = px_size/2
+        global pixel_size
+        pixel_size = self.pixel_size
+        
+        self.matrix_basis[0][0], self.matrix_basis[1][1] = self.pixel_size, self.pixel_size
 
-        p_reg_origin = p_view_origin #* zoom #* 1000
-        p_reg_origin_plus = p_view_origin_plus #* zoom #* 1000
-        p_reg_max_x = p_view_max_x #* zoom
-
-        image_reg_unit = abs(p_reg_origin_plus.x) - abs(p_reg_origin.x)
-        image_reg_width = abs(p_reg_max_x.x) - abs(p_reg_origin.x)
-        #p_reg_origin = (int(abs(p_reg_origin[0])), int(abs(p_reg_origin[1])))
-
-        ratio = image_reg_unit / image_reg_width
-        pixel_size = max(1, ratio * (image_size.x * zoom/2))
-
-        self.ratio = ratio
-        self.size = pixel_size
-
-        #print(p_reg_origin, p_reg_origin_plus, p_reg_max_x)
-        #print(image_reg_unit)
-        #print(image_reg_width)
-        print(ratio)
-        print(pixel_size)
-        self.matrix_basis[0][0], self.matrix_basis[1][1] = pixel_size, pixel_size
+        # Update Pixel Pos as zoom changed...
+        self.zoom = zoom
+        self.update_pixel_pos(ctx, self.mp)
 
     def draw(self, context):
+        ups = PaintUtils.get_unified_paint_settings(context)
+        #if ups.use_unified_color:
+        self.color = ups.color
         #zoom = context.space_data.zoom[0]
         #self.matrix_basis[0][0], self.matrix_basis[1][1] = zoom*1.5, zoom*1.5
         self.update_pixel_size(context)
+        image_size = ImageUtils.get_image_size(context)
+        view_width  = image_size[0] * self.zoom
+        view_height = image_size[1] * self.zoom
+        reg_origin = ImageUtils.project_to_region(context, (0, 0), clip=False)
+        img_region_width = self.pixel_size * image_size[0]
+        img_region_height = self.pixel_size * image_size[1]
+        reg_max = ImageUtils.project_to_region(context, (1, 1), clip=False)
+        #img_region_width  = (reg_max[0] - reg_origin[0])
+        #img_region_height = (reg_max[1] - reg_origin[1])
 
         self.draw_preset_box(self.matrix_basis, select_id=0)
+        Grid([*reg_origin, *reg_max], (.1, .1, .1, .85), dimensions=image_size)
+        
 
 
 class PixelPaintWidgetGroup(GizmoGroup):
@@ -144,6 +267,9 @@ class PixelPaintWidgetGroup(GizmoGroup):
 
     def setup(self, context):
         self.widget = self.gizmos.new(PixelPaintWidget.bl_idname)
+        self.widget.use_draw_modal = False
+        self.widget.use_grab_cursor = False
+        PixelPaintWidget.instances[str(id(context.region))] = self.widget
 
     def refresh(self, context):
         pass
@@ -167,4 +293,16 @@ class PixelPaintTool(WorkSpaceTool):
     )
 
     def draw_settings(context, layout, tool):
-        pass
+        props = tool.operator_properties(ATELIERPAINT_OT_px_paint.bl_idname)
+
+        ups = PaintUtils.get_unified_paint_settings(context)
+        row = layout.row(align=True)
+        row.label(text='Fill Color:')
+        if ups.use_unified_color:
+            row.prop(ups, "color", text="")
+            row.prop(ups, "secondary_color", text="")
+            _row = layout.row()
+            _row.operator('paint.brush_colors_flip', text="", icon='FILE_REFRESH', emboss=False)
+        else:
+            row.prop(props, "color", text="")
+        row.prop(ups, "use_unified_color", text="", icon='BRUSHES_ALL')

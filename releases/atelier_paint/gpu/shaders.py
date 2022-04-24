@@ -33,7 +33,7 @@ out vec2 uv;
 void main()
 {
   uv = texco;
-  gl_Position = ModelViewProjectionMatrix * vec4(pos, 1.0, 1.0);
+  gl_Position = ModelViewProjectionMatrix * vec4(pos, 0.0, 1.0);
 }
 """
 frag_uv_rnd_corr = """
@@ -103,40 +103,3 @@ void main()
  fragColor.a = texColor.a;
 }
 """
-frag_grid = """
-in vec2 uv;
-out vec4 fragColor;
-uniform vec4 u_color;
-uniform vec2 u_dimensions;
-float grid(vec2 st, float res)
-{
-  vec2 grid = fract(st*res);
-  return (step(res,grid.x) * step(res,grid.y));
-}
-void main()
-{
-  vec2 grid_uv = uv * u_dimensions;
-
-  vec2 grid_1 = fract(grid_uv);
-  if ( (grid_1.x < 0.98 && grid_1.y < 0.98) && (grid_1.x > 0.02 && grid_1.y > 0.02) )
-    discard;
-
-  //vec2 grid_2 = fract(u_dimensions-grid_uv);
-  //if (grid_2.x > 0.05 && grid_2.y > 0.05)
-  //  discard;
-
-  //float k = grid(grid_uv, 1.0); // resolution
-  fragColor = u_color;
-  //fragColor.a += grid_uv.y;
-  fragColor.a = 1.0;
-}
-"""
-'''
-if (mod(gl_FragCoord.x, u_dimensions.x) < 1.0 ||
-    mod(gl_FragCoord.y, u_dimensions.y) < 1.0) {
-    fragColor = u_color;
-  } else {
-    fragColor.a = coords.x * coords.y;
-    discard;
-  }
-'''

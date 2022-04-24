@@ -51,7 +51,7 @@ shader_2d_basic = GPUShader(vert_basic,frag_basic)
 shader_2d_unif_corr = GPUShader(vert_basic,frag_unif_corr,libcode=lib_colorcor)
 shader_2d_unif_uv_corr = GPUShader(vert_uv,frag_uv_rnd_corr,libcode=lib_colorcor)
 shader_2d_image_basic_corr = GPUShader(vert_img,frag_img_corr,libcode=lib_colorcor)
-shader_2d_grid = GPUShader(vert_uv,frag_grid)
+
 
 def Rct(rct: VECTOR_4, color: VECTOR_4, shader=shader_2d_unif):
     batch = batch_for_shader(shader, ShaderType.TRIS(), rct_verts(*rct), indices=rct_indices)
@@ -128,14 +128,3 @@ def Image(texture, pos: VECTOR_2, size: VECTOR_2, shader=shader_2d_image_basic_c
         shader.uniform_sampler("image", texture)
 
         batch.draw(shader)
-
-def Grid(rct: VECTOR_4, color: RGBA, dimensions: VECTOR_2, shader=shader_2d_grid):
-    batch = batch_for_shader(shader, ShaderType.TRI_FAN(), rct_top_rnd_verts(*rct))
-    shader.bind()
-    if not dimensions:
-        dimensions=(abs(rct[2]-rct[0]), abs(rct[3]-rct[1]))
-    shader.uniform_float("u_dimensions", dimensions)
-    shader.uniform_float("u_color", color)
-    if color[3]!=1.0: blend_set('ALPHA')
-    batch.draw(shader)
-    if color[3]!=1.0: blend_set('NONE')
