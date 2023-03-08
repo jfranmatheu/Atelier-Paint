@@ -164,7 +164,7 @@ def draw_settings(context, layout, tool):
         row.prop(props, "color", text="")
     row.prop(ups, "use_unified_color", text="", icon='BRUSHES_ALL')
     
-    layout.prop(props, "roundness", slider=True)
+    #layout.prop(props, "roundness", slider=True)
 
 
 class FillRectShapeTool(WorkSpaceTool):
@@ -176,7 +176,7 @@ class FillRectShapeTool(WorkSpaceTool):
     bl_label = "Draw Rectangle"
     bl_description = (
         "Draw a rectangular shape\n"
-        "with or without rounded corners\n"
+        #"with or without rounded corners\n"
         "and fill it with color"
     )
     bl_icon = "ops.gpencil.primitive_box"
@@ -188,32 +188,6 @@ class FillRectShapeTool(WorkSpaceTool):
         (ATELIERPAINT_OT_fill_shape.bl_idname, {"type": 'LEFTMOUSE', "value": 'PRESS'}, {}),
         (ATELIERPAINT_OT_fill_shape.bl_idname, {"type": 'LEFTMOUSE', "value": 'PRESS', "ctrl": True}, {}),
         (ATELIERPAINT_OT_fill_shape.bl_idname, {"type": 'LEFTMOUSE', "value": 'PRESS', "shift": True}, {}),
-    )
-
-    def draw_settings(context, layout, tool):
-        draw_settings(context, layout, tool)
-
-
-class FillCircleShapeTool(WorkSpaceTool):
-    bl_space_type = 'IMAGE_EDITOR'
-    bl_context_mode = 'PAINT' # default: 'All'
-
-    # The prefix of the idname should be your add-on name.
-    bl_idname = "atelier_paint.fill_circle_shape"
-    bl_label = "Draw Circle"
-    bl_description = ("Draw a circular shape")
-    bl_icon = "ops.gpencil.primitive_circle"
-    bl_cursor = 'PICK_AREA'
-    #bl_data_block = 'BRUSH' # ('DEFAULT', 'NONE', 'WAIT', 'CROSSHAIR', 'MOVE_X', 'MOVE_Y', 'KNIFE', 'TEXT', 'PAINT_BRUSH', 'PAINT_CROSS', 'DOT', 'ERASER', 'HAND', 'SCROLL_X', 'SCROLL_Y', 'SCROLL_XY', 'EYEDROPPER', 'PICK_AREA', 'STOP', 'COPY', 'CROSS', 'MUTE', 'ZOOM_IN', 'ZOOM_OUT')'''
-    bl_widget = None
-    #bl_options = {'REGISTER', 'UNDO'}
-    bl_operator = ATELIERPAINT_OT_fill_shape.bl_idname
-    bl_keymap = (
-        (ATELIERPAINT_OT_fill_shape.bl_idname, {"type": 'LEFTMOUSE', "value": 'PRESS'},
-         {"properties": [("shape", 'CIRCLE')]}),
-        (ATELIERPAINT_OT_fill_shape.bl_idname, {"type": 'LEFTMOUSE', "value": 'PRESS', "ctrl": True},
-         {"properties": [("shape", 'CIRCLE')]})
-        #(ATELIERPAINT_OT_fill_shape.bl_idname, {"type": 'LEFTMOUSE', "value": 'PRESS', "shift": True}, {}),
     )
 
     def draw_settings(context, layout, tool):
