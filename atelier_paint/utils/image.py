@@ -20,7 +20,7 @@ class ImageUtils:
     @staticmethod
     def get_image(context) -> Image:
         return context.space_data.image
-    
+
     @staticmethod
     def get_image_size(context) -> Tuple[int, int]:
         return context.space_data.image.size
@@ -205,27 +205,65 @@ class ImageUtils:
         if WIDTH == 0 or HEIGHT == 0:
             return
 
-        #fb = gpu.state.active_framebuffer_get()
-        #viewport_info = fb.viewport_get()
-        #viewport_width = viewport_info[2]
-        #viewport_height = viewport_info[3]
-        #ratio = viewport_width / viewport_height
-        #ratio = context.window.width / context.window.height
-        #ratio_x = ratio if ratio > 1 else 1
-        #ratio_y = ratio if ratio < 1 else 1
-        #print(ratio)
-        #RATIO = ratio
+        # get currently bound framebuffer
+        framebuffer = gpu.state.active_framebuffer_get()
+        framebuffer.bind()
+        framebuffer.clear(color=(0.0, 0.0, 0.0, 0.0))
 
+        # get information on current viewport
+        ## viewport_info = gpu.state.viewport_get()
+        ## width = viewport_info[2]
+        ## height = viewport_info[3]
+        
+        width, height = image.size
+        pixel_count = width * height
+        #offscreen = gpu.types.GPUOffScreen(img_width, img_height)
+        #with offscreen.bind():
+        
+        print("Viewport Size:", width, height)
+
+        # Write copied data to image
+        ######################################################
+        # resize image obect to fit the current 3D View size
+        ## framebuffer_image = bpy.data.images.new('FRAMEBUFFER', width, height, float_buffer=True)
+        ## framebuffer_image.scale(width, height)
+
+        with gpu.matrix.push_pop():
+            gpu.matrix.load_matrix(Matrix.Identity(4))
+            if include_image:
+                draw_texture_2d(gpu.texture.from_image(image), (-0.3675, -0.3675), width, height)
+                #draw.Image(gpu.texture.from_image(image), (0, 0), (width, height))
+            draw_callback([min_x, min_y, max_x, max_y], (WIDTH, HEIGHT), *args)
+
+        # obtain pixels from the framebuffer
+        pixelBuffer = framebuffer.read_color(min_x, min_y, WIDTH, HEIGHT, 4, 0, 'FLOAT')
+        ## pixelBuffer = framebuffer.read_color(0, 0, width, height, 4, 0, 'FLOAT')
+
+        # write all pixels into the blender image
+        pixelBuffer.dimensions = WIDTH * HEIGHT * 4
+        ## pixelBuffer.dimensions = width * height * 4
+        ## framebuffer_image.pixels.foreach_set(pixelBuffer)
+
+        pixels_from = pixelBuffer
+
+        # Read pixels.
+        pixels_to = np.empty(shape=(pixel_count*4), dtype=np.float32)
+        image.pixels.foreach_get(pixels_to)
+
+
+        """
         img_width, img_height = image.size
         offscreen = gpu.types.GPUOffScreen(img_width, img_height)
 
         with offscreen.bind():
+
             fb = gpu.state.active_framebuffer_get()
             fb.bind()
             gpu.state.viewport_set(0, 0, img_width, img_height)
             #fb.viewport_set(0, 0, img_width, img_height)
             fb.clear(color=(0.0, 0.0, 0.0, 0.0))
             #gpu.matrix.reset()
+
             with gpu.matrix.push_pop(), gpu.matrix.push_pop_projection():
                 gpu.matrix.load_matrix(Matrix.Identity(4))
                 #print(gpu.matrix.get_projection_matrix())
@@ -243,6 +281,37 @@ class ImageUtils:
             buffer = fb.read_color(0, 0, WIDTH, HEIGHT, 4, 0, 'FLOAT') # 'UBYTE')
             buffer.dimensions = WIDTH * HEIGHT * 4
 
+            '''
+            # get currently bound framebuffer
+            framebuffer = gpu.state.active_framebuffer_get()
+
+            # get information on current viewport
+            viewport_info = gpu.state.viewport_get()
+            width = viewport_info[2]
+            height = viewport_info[3]
+
+            offscreen = gpu.types.GPUOffScreen(width, height)
+
+            print("Viewport Size:", width, height)
+
+            with gpu.matrix.push_pop(), gpu.matrix.push_pop_projection():
+                gpu.matrix.load_matrix(Matrix.Identity(4))
+                if projection_matrix:
+                    gpu.matrix.load_projection_matrix(projection_matrix)
+                if include_image:
+                    #draw_texture_2d(gpu.texture.from_image(image), (-min_x, -min_y), img_width, img_height)
+                    draw.Image(gpu.texture.from_image(image), (0, 0), (width, height))
+                draw_callback([min_x, min_y, max_x, max_y], (WIDTH, HEIGHT), *args)
+
+            # Write copied data to image
+            ######################################################
+            # resize image obect to fit the current 3D View size
+            #framebuffer_image.scale(self.width, self.height)
+
+            buffer = framebuffer.read_color(min_x, min_y, WIDTH, HEIGHT, 4, 0, 'FLOAT') # 'UBYTE')
+            buffer.dimensions = WIDTH * HEIGHT * 4
+            '''
+
         offscreen.free()
 
         pixels_from = buffer
@@ -254,21 +323,21 @@ class ImageUtils:
         pixel_count = image.size[0] * image.size[1]
         pixels_to = np.empty(shape=(pixel_count*4), dtype=np.float32)
         image.pixels.foreach_get(pixels_to)
+        """
 
-
-        ''' METHOD WITHOUT DRAWING IMAGE...
+        """
+        # METHOD WITHOUT DRAWING IMAGE...
         # Read pixels.
-        pixel_count = image.size[0] * image.size[1]
         pixels_to = np.empty(shape=(pixel_count*4), dtype=np.float32)
         image.pixels.foreach_get(pixels_to)
 
         # Create array with required shape.
-        pixels_from = np.array(buffer, dtype=np.float32).reshape((WIDTH, HEIGHT, 4))
-        pixels_to   = pixels_to.reshape((image.size[0], image.size[1], 4))
+        pixels_from = np.array(pixels_from, dtype=np.float32).reshape((width, height, 4)) # WIDTH, HEIGHT
+        pixels_to   = pixels_to.reshape((width, height, 4))
 
         # Slice based on selection.
         srcRGBA = pixels_from
-        dstRGBA = pixels_to[min_x:max_x, min_y:max_y]
+        dstRGBA = pixels_to # [min_x:max_x, min_y:max_y]
 
         # Extract the RGB channels
         srcRGB = srcRGBA[...,:3] # Source.
@@ -294,11 +363,13 @@ class ImageUtils:
         #outRGBA = np.concatenate((outRGB, outA), axis=2) # TWO dimensional array.
 
         # Merge selection to the image.
-        pixels_to[min_x:max_x, min_y:max_y] = outRGBA[:]
-        pixels_to = pixels_to.reshape(-1)
+        ## pixels_to[min_x:max_x, min_y:max_y] = outRGBA[:]
+        ## pixels_to = pixels_to.reshape(-1)
+        pixels_to = outRGBA.reshape(-1)
+        pixels_to = np.power(pixels_to, .4545)
+        """
 
-        '''
-
+        
         # Iterator props for Original Image.
         i_pixels_width = image.size[0] * 4 # Multiply per 4 channels (RGBA).
         i_from_x = min_x * 4 # RGBA.
@@ -318,13 +389,17 @@ class ImageUtils:
 
         for _row in range(i_from_y, i_to_y):
             pixels_to[i_from_x:i_to_x] = pixels_from[s_from_x:s_to_x]
+            # This is when the pixels_from and pixels_to buffers have identical shapes.
+            #pixels_to[i_from_x:i_to_x] = pixels_from[i_from_x:i_to_x]
             i_from_x += i_pixels_width
             i_to_x   += i_pixels_width
             s_from_x += s_pixels_width
             s_to_x   += s_pixels_width
+        
 
         image.pixels.foreach_set(pixels_to)
         ImageUtils.refresh(image, context)
+        
 
         ''' JUST FOR DEBUG. '''
         '''

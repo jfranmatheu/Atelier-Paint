@@ -20,7 +20,7 @@ COL_RED = (245/255, 50/255, 10/255, 1)
 class ATELIERPAINT_OT_fill_draw(BasePaintToolOperator, Operator):
     bl_idname = 'atelierpaint.fill_draw'
     bl_label = "Fill Draw Shape"
-    
+
     finish_on_mouse_release = False
 
     color: FloatVectorProperty(name='Color', default=(1.0, 6.0, 2.0, 1.0), size=4, subtype='COLOR', min=0.0, max=1.0)
@@ -28,7 +28,7 @@ class ATELIERPAINT_OT_fill_draw(BasePaintToolOperator, Operator):
     def init(self, context) -> None:
         self.first_press = True
         self.first_release = True
-        
+
         # WHAT.
         # context.space_data.use_realtime_update = True
         context.space_data.show_annotation = True
@@ -58,14 +58,15 @@ class ATELIERPAINT_OT_fill_draw(BasePaintToolOperator, Operator):
             print("Release")
             #bpy.ops.gpencil.annotation_active_frame_delete(False)
             self.first_release = False
-            
+
             print("Note start")
             bpy.ops.gpencil.annotate('INVOKE_DEFAULT', mode='DRAW', use_stabilizer=True, wait_for_input=False)
             print("Note end")
         else:
             print("DONE!")
             context.area.tag_redraw()
-            self.fake_confirm = True
+            self.fake_confirm = True # this crashes underneath due to undo push pull
+            self.use_undo_hack = False # but it doesn't crash if we disable this...
 
     def confirm(self, context, event) -> None:
         context.area.tag_redraw()
@@ -81,10 +82,10 @@ class ATELIERPAINT_OT_fill_draw(BasePaintToolOperator, Operator):
         max_y = max(verts, key = lambda co: co[1])[1]
 
         def draw_shape(rct, dim):
-            offset = (min_x, min_y)
-            off_verts = [(co[0]-offset[0], co[1]-offset[1]) for co in verts]
+            #offset = (min_x, min_y)
+            #off_verts = [(co[0]-offset[0], co[1]-offset[1]) for co in verts]
             #self.overlay(context, use_projected_coords=True)
-            Poly(off_verts, faces, self.color, shader=shader_2d_unif_corr)
+            Poly(verts, faces, self.color, shader=shader_2d_unif_corr)
 
         ImageUtils.fill_from_offscreen(
             self.image,

@@ -15,6 +15,8 @@ from gpu.types import *
 from .shaders import *
 from .libcode import *
 
+IN_BACKGROUND = bpy.app.background
+
 VECTOR_2 = Tuple[int, int] | Tuple[float, float]
 VECTOR_4 = Tuple[int, int, int, int] | Tuple[float, float, float, float]
 RGBA = Tuple[float, float, float, float]
@@ -43,15 +45,16 @@ rct_top_rnd_verts = lambda ax,ay,bx,by: {"pos": [(ax,ay),(ax,by),(bx,by),(bx,ay)
 poly_verts = lambda points: {"pos": points}
 line_verts = lambda points: {"pos": points}
 
-shader_2d_flat = gpu.shader.from_builtin('2D_FLAT_COLOR')
-shader_2d_smooth = gpu.shader.from_builtin('2D_SMOOTH_COLOR')
-shader_2d_unif = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
-shader_2d_image = gpu.shader.from_builtin('2D_IMAGE')
-shader_2d_basic = GPUShader(vert_basic,frag_basic)
-shader_2d_unif_corr = GPUShader(vert_basic,frag_unif_corr,libcode=lib_colorcor)
-shader_2d_unif_uv_corr = GPUShader(vert_uv,frag_uv_rnd_corr,libcode=lib_colorcor)
-shader_2d_image_basic_corr = GPUShader(vert_img,frag_img_corr,libcode=lib_colorcor)
-shader_2d_grid = GPUShader(vert_uv,frag_grid)
+shader_2d_flat = gpu.shader.from_builtin('FLAT_COLOR') if not IN_BACKGROUND else None
+shader_2d_smooth = gpu.shader.from_builtin('SMOOTH_COLOR') if not IN_BACKGROUND else None
+shader_2d_unif = gpu.shader.from_builtin('UNIFORM_COLOR') if not IN_BACKGROUND else None
+shader_2d_image = gpu.shader.from_builtin('IMAGE') if not IN_BACKGROUND else None
+shader_2d_basic = GPUShader(vert_basic,frag_basic) if not IN_BACKGROUND else None
+shader_2d_unif_corr = GPUShader(vert_basic,frag_unif_corr,libcode=lib_colorcor) if not IN_BACKGROUND else None
+shader_2d_unif_uv_corr = GPUShader(vert_uv,frag_uv_rnd_corr,libcode=lib_colorcor) if not IN_BACKGROUND else None
+shader_2d_image_basic_corr = GPUShader(vert_img,frag_img_corr,libcode=lib_colorcor) if not IN_BACKGROUND else None
+shader_2d_grid = GPUShader(vert_uv,frag_grid) if not IN_BACKGROUND else None
+shader_2d_grid_multi = GPUShader(vert_uv,frag_grid_multi) if not IN_BACKGROUND else None
 
 def Rct(rct: VECTOR_4, color: VECTOR_4, shader=shader_2d_unif):
     batch = batch_for_shader(shader, ShaderType.TRIS(), rct_verts(*rct), indices=rct_indices)
@@ -63,7 +66,7 @@ def Rct(rct: VECTOR_4, color: VECTOR_4, shader=shader_2d_unif):
 
 
 def Text(pos: VECTOR_2, size: int, text: str, pivot: VECTOR_2 = (0, 1), color: RGBA = (.92, .92, .92, 1.0), font_id: int = 0, dpi: int = 72, z: int = 0):
-    set_text_size(font_id, size, dpi)
+    set_text_size(font_id, size)
     dim = get_text_dim(font_id, text)
     p = [*pos]
     if pivot[0] != 0:
@@ -129,13 +132,25 @@ def Image(texture, pos: VECTOR_2, size: VECTOR_2, shader=shader_2d_image_basic_c
 
         batch.draw(shader)
 
-def Grid(rct: VECTOR_4, color: RGBA, dimensions: VECTOR_2, shader=shader_2d_grid):
+def Grid(rct: VECTOR_4, color: RGBA, scale: float, dimensions: VECTOR_2, shader=shader_2d_grid):
     batch = batch_for_shader(shader, ShaderType.TRI_FAN(), rct_top_rnd_verts(*rct))
     shader.bind()
     if not dimensions:
         dimensions=(abs(rct[2]-rct[0]), abs(rct[3]-rct[1]))
     shader.uniform_float("u_dimensions", dimensions)
     shader.uniform_float("u_color", color)
+    #shader.uniform_float("u_zoom", scale)
     if color[3]!=1.0: blend_set('ALPHA')
     batch.draw(shader)
     if color[3]!=1.0: blend_set('NONE')
+
+def GridMulti(rct: VECTOR_4, dimensions: VECTOR_2 = None, shader=shader_2d_grid):
+    batch = batch_for_shader(shader, ShaderType.TRI_FAN(), rct_top_rnd_verts(*rct))
+    shader.bind()
+    if not dimensions:
+        dimensions=(abs(rct[2]-rct[0]), abs(rct[3]-rct[1]))
+    shader.uniform_float("u_dimensions", dimensions)
+    #shader.uniform_float("color", color)
+    #blend_set('ALPHA')
+    batch.draw(shader)
+    #blend_set('NONE')

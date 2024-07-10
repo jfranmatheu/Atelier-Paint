@@ -100,8 +100,10 @@ class ATELIERPAINT_OT_fill_shape(BasePaintToolOperator, Operator):
     def on_mouse_release(self, context, mouse) -> None:
         #if self.mouse_init == mouse:
         #    return
-        if self.mouse_init[0] == mouse[0] or self.mouse_init[1] == mouse[1]:
+        if self.mouse_init[0] == self.mouse_current[0] or self.mouse_init[1] == self.mouse_current[1]:
+            #print("No mouse move!")
             return
+
         if self.roundness == 0:
             ImageUtils.fill(
                 self.image,

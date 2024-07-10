@@ -1,12 +1,12 @@
-from math import ceil, floor
-from atelier_paint.gpu.draw import Grid, Rct
+from math import ceil, floor, radians
+from atelier_paint.gpu.draw import Grid, GridMulti, Rct
 from atelier_paint.ops.base import BasePaintToolOperator
 from atelier_paint.utils.image import ImageUtils
 from atelier_paint.utils.math import clamp
 from atelier_paint.utils.paint import PaintUtils
 import bpy
 from bpy.types import GizmoGroup, Gizmo, WorkSpaceTool, Operator
-from mathutils import Vector
+from mathutils import Vector, Matrix
 from bpy.props import FloatVectorProperty
 
 global pixel_slot
@@ -86,7 +86,6 @@ class PixelPaintWidget(Gizmo):
         return PixelPaintWidget.instances.get(str(id(context.region)), None)
 
     def setup(self):
-        #self.ratio = 1
         self.pixel_size = 1
         self.pos = (0, 0)
         self.px_indices = (0, 0)
@@ -108,28 +107,41 @@ class PixelPaintWidget(Gizmo):
         image_size = Vector(ImageUtils.get_image_size(ctx))
         zoom = ctx.space_data.zoom[0]
 
+        # Transpose position to the image region space area.
+        # ++++++++++++++++++++++++++++++++++++++++
         pos = Vector(pos)
         reg_origin = Vector(ImageUtils.project_to_region(ctx, (0, 0), clip=False, round_to_int=False))
         rel_pos = pos - reg_origin
+        global img_reg_origin
+        img_reg_origin = reg_origin
 
+        # Get Image Size Ratio in both axis.
+        # ++++++++++++++++++++++++++++++++++++++++
+        ## First (actually second lol) Method.
+        reg_max = Vector(ImageUtils.project_to_region(ctx, (1, 1), clip=False, round_to_int=False))
+        image_size_in_region = reg_max - reg_origin
+
+        ## Second Method
         reg_image_size = Vector((image_size.x * zoom, image_size.y * zoom))
         image_ratio_x = reg_image_size.x / image_size.x
         image_ratio_y = reg_image_size.y / image_size.y
 
-        px_indices = Vector((
+        # Get pixel indices marking x,y on the image pixels.
+        # +++++++++++++++++++++++++++++++++++++++++
+        self.px_indices = px_indices = (
             floor(rel_pos.x / image_ratio_x),
             floor(rel_pos.y / image_ratio_y)
-        ))
-        self.px_indices = px_indices
+        )
         global pixel_slot
-        pixel_slot = (int(px_indices.x), int(px_indices.y))
-        global img_reg_origin
-        img_reg_origin = reg_origin
+        pixel_slot = px_indices
 
+        # Use pixel indices, image region origin co and pixel size to find the pixel location...
+        # Not too precise but it kind of works.
+        # +++++++++++++++++++++++++++++++++++++++++
         pixel_size = self.pixel_size
         fixed_mp = (
-            ceil(reg_origin[0] + (image_ratio_x * px_indices.x) + pixel_size),
-            ceil(reg_origin[1] + (image_ratio_y * px_indices.y) + pixel_size)# + 1
+            (reg_origin[0] + (image_ratio_x * px_indices[0]) + pixel_size),
+            (reg_origin[1] + (image_ratio_y * px_indices[1]) + pixel_size)# + 1
         )
 
         self.pos = fixed_mp
@@ -143,13 +155,18 @@ class PixelPaintWidget(Gizmo):
         if zoom == self.zoom:
             return
 
-        view_width  = image_size.x * zoom
+        #view_width  = image_size.x * zoom
         #view_height = image_size.y * zoom
-        reg_x0   = ImageUtils.project_to_region(ctx, (0, 0),           clip=False)[0]
-        reg_x1   = ImageUtils.project_to_region(ctx, (1, 0),           clip=False)[0]
+        reg_x0 = ImageUtils.project_to_region(ctx, (0, 0), clip=False)[0]
+        reg_x1 = ImageUtils.project_to_region(ctx, (1, 0), clip=False)[0]
+        img_reg_width = (reg_x1 - reg_x0)
+
+        print("ZOOM:", zoom)
+        print("IMG REGION WIDTH:", (img_reg_width)) #, view_height))
 
         # Calc pixel size.
-        px_size = (reg_x1 - reg_x0) / view_width * zoom
+        #px_size = (reg_x1 - reg_x0) / view_width * zoom
+        px_size = img_reg_width / image_size.x
         self.pixel_size = px_size/2
         global pixel_size
         pixel_size = self.pixel_size
@@ -162,16 +179,20 @@ class PixelPaintWidget(Gizmo):
 
     def draw(self, context):
         ups = PaintUtils.get_unified_paint_settings(context)
-        #if ups.use_unified_color:
-        self.color = ups.color
+        if ups.use_unified_color:
+            self.color = ups.color
         self.update_pixel_size(context)
         image_size = ImageUtils.get_image_size(context)
         reg_origin = ImageUtils.project_to_region(context, (0, 0), clip=False)
         reg_max = ImageUtils.project_to_region(context, (1, 1), clip=False)
 
         self.draw_preset_box(self.matrix_basis, select_id=0)
-        Grid([*reg_origin, *reg_max], (.1, .1, .1, .85), dimensions=image_size)
-
+        #Rct([self.pos[0]-self.pixel_size, self.pos[1]-self.pixel_size, self.pos[0]+self.pixel_size, self.pos[1]+self.pixel_size], (*self.color, 1.0))
+        #mat_rot = Matrix.Rotation(radians(90.0), 4, 'Z')
+        #self.draw_preset_box(self.matrix_basis @ mat_rot, select_id=0)
+        if int(self.zoom) >= 16: # 32
+            Grid([*reg_origin, *reg_max], (.8, .8, .8, 1), scale=16/self.zoom, dimensions=image_size)
+        #GridMulti([*reg_origin, *reg_max], dimensions=image_size)
 
 
 class PixelPaintWidgetGroup(GizmoGroup):

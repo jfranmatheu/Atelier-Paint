@@ -1,3 +1,4 @@
+from math import ceil
 from random import randint
 from typing import Set, Tuple
 import numpy as np
@@ -208,8 +209,9 @@ class BasePaintToolOperator:
             'y_tilt' : 0
         }
         ]
-        ctx = {'screen': context.screen, 'area': context.area, 'region': context.region}
-        bpy.ops.paint.image_paint(ctx, 'EXEC_DEFAULT', True, stroke=strokes, mode='NORMAL')
+        ctx = {'window': context.window, 'area': context.area, 'region': context.region}
+        with context.temp_override(**ctx):
+            bpy.ops.paint.image_paint('EXEC_DEFAULT', True, stroke=strokes, mode='NORMAL')
         PaintUtils.set_color(context, self.color[:3])
 
 
